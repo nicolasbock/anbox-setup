@@ -76,5 +76,4 @@
         var: snap_output.stdout_lines
 
     - name: Restart anbox VM
-      reboot:
-        reboot_timeout: 3600
+      script: /snap/bin/multipass exec anbox -- sudo systemctl reboot
