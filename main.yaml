@@ -1,0 +1,80 @@
+---
+
+- hosts: localhost
+  vars:
+    cleanup: True
+  tasks:
+    - name: Check for old multipass VM
+      script: /snap/bin/multipass info anbox
+      ignore_errors: yes
+      register: old_VM_result
+
+    - name: Delete old multipass VM
+      script: /snap/bin/multipass delete --purge anbox
+      when: not old_VM_result.failed and cleanup
+
+    - name: Wait for old VM to be deleted
+      script: /snap/bin/multipass info anbox
+      register: old_VM_deleted
+      ignore_errors: yes
+      until: old_VM_deleted.failed
+      delay: 10
+      when: not old_VM_result.failed and cleanup
+
+    - name: Create multipass VM
+      script: /snap/bin/multipass launch --name anbox --cpus 4 --mem 2G
+      register: launch_output
+      when: cleanup
+
+    - name: Get kernel version
+      script: /snap/bin/multipass exec anbox -- /usr/bin/uname -r
+      register: kernel_version_output
+
+    - name: Register kernel version
+      set_fact:
+        kernel_version: "{{ kernel_version_output.stdout_lines[0] }}"
+
+    - name: Update apt
+      script: /snap/bin/multipass exec anbox -- sudo apt update
+
+    - name: Install extra kernel modules
+      script: /snap/bin/multipass exec anbox -- sudo apt --yes install linux-modules-extra-{{ kernel_version }}
+      register: modules_extra_output
+
+    - debug:
+        var: modules_extra_output.stdout_lines
+
+    - name: Load Android kernel module -- ashmem
+      script: /snap/bin/multipass exec anbox -- sudo modprobe ashmem_linux
+
+    - name: Load Android kernel module -- binder
+      script: /snap/bin/multipass exec anbox -- sudo modprobe binder_linux
+
+    - name: Check for loaded modules
+      script: /snap/bin/multipass exec anbox -- /usr/sbin/lsmod
+      register: modules_output
+
+    - name: Register modules
+      set_fact:
+        loaded_modules: "{{ modules_output.stdout_lines | select('match', '(ashmem|binder)') | list }}"
+
+    - debug:
+        var: loaded_modules
+
+    - name: Install Android Debug Bridge (adb)
+      script: /snap/bin/multipass exec anbox -- sudo apt --yes install android-tools-adb
+      register: adb_output
+
+    - debug:
+        var: adb_output.stdout_lines
+
+    - name: Install anbox snap
+      script: /snap/bin/multipass exec anbox -- sudo snap install --devmode --beta anbox
+      register: snap_output
+
+    - debug:
+        var: snap_output.stdout_lines
+
+    - name: Restart anbox VM
+      reboot:
+        reboot_timeout: 3600
