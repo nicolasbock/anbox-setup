@@ -2,7 +2,7 @@
 
 - hosts: localhost
   vars:
-    cleanup: True
+    cleanup: False
   tasks:
     - name: Check for old multipass VM
       script: /snap/bin/multipass info anbox
@@ -36,6 +36,9 @@
 
     - name: Update apt
       script: /snap/bin/multipass exec anbox -- sudo apt update
+
+    - name: Upgrade packages
+      script: /snap/bin/multipass exec anbox -- sudo apt --yes upgrade
 
     - name: Install extra kernel modules
       script: /snap/bin/multipass exec anbox -- sudo apt --yes install linux-modules-extra-{{ kernel_version }}
